@@ -12,5 +12,6 @@
 | Java/基础         | <ul><li>[[Java/基础/class文件的生成逻辑.md\\|class文件的生成逻辑]]</li></ul>                            |
 | Java/Collection | <ul><li>[[Java/Collection/List.md\\|List]]</li></ul>                                    |
 | Java/Generics   | <ul><li>[[Java/Generics/PECS.md\\|PECS]]</li><li>[[Java/Generics/概念.md\\|概念]]</li></ul> |
+| Maven           | <ul><li>[[Maven/Maven.md\\|Maven]]</li></ul>                                            |
 
 { .block-language-dataview}
