@@ -96,7 +96,11 @@ Java 的**类加载器（ClassLoader）** 采用**双亲委派模型**：
 - 因此，**无论 classpath 中有多少个模块，只要它们通过同一个类加载器加载，每个类在内存中只有一份**。
     
 
-如果你将多个模块的 JAR 都放在 classpath 中，JVM 只会把每个类加载一次，不会因为多个 JAR 中包含同一个类而重复加载（实际上，如果同一个类的不同版本出现在 classpath 中，会出现“类冲突”问题，但这不是重复加载，而是类路径顺序决定哪个版本被加载）。
+如果你将多个模块的 JAR 都放在 classpath 中，JVM 只会把每个类加载一次，不会因为多个 JAR 中包含同一个类而重复加载（实际上，如果同一个类的不同版本出现在 classpath 中，会出现“类冲突”问题。
+
+如何解决类冲突问题？Maven使用了冲突仲裁机制
+1. 就近原则：路径短的优先。
+2. 最先声明原则：路径一样长时，谁先在 `pom.xml` 里写谁优先。
 
 
   
@@ -130,52 +134,74 @@ Maven 本身不执行编译、测试等任务，而是通过**插件目标（plu
 
 ---
 
-## 六、一个综合例子
+## 六、结合具体POM文件的理解
 
 假设 `pom.xml` 中有以下依赖：
 
 ```xml
-<dependency>  
-<groupId>org.springframework</groupId>  
-<artifactId>spring-core</artifactId>  
-<scope>compile</scope>  
-</dependency>  
-<dependency>  
-<groupId>javax.servlet</groupId>  
-<artifactId>javax.servlet-api</artifactId>  
-<scope>provided</scope>  
-</dependency>  
-<dependency>  
-<groupId>mysql</groupId>  
-<artifactId>mysql-connector-java</artifactId>  
-<scope>runtime</scope>  
-</dependency>  
-<dependency>  
-<groupId>org.junit.jupiter</groupId>  
-<artifactId>junit-jupiter</artifactId>  
-<scope>test</scope>  
-</dependency>
+<project>
+<!--  Maven有继承的机制，比如说子项目的 lombok都是一个版本的，那就可以写在父包的配置文件中，
+这样子包只需要继承就可以了  -->
+    <parent>
+        <artifactId>bc-tax-ai-hub</artifactId>
+        <groupId>com.bosssoft.taxjoy.bc</groupId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>bc-tax-ai-hub-api</artifactId>
+    <groupId>org.example</groupId>
+    <artifactId>test</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+<!--        这是设置编译器能接受的源码版本-->
+        <maven.compiler.source>8</maven.compiler.source>
+<!--        这是编译后生成的字节码版本-->
+        <maven.compiler.target>8</maven.compiler.target>
+<!--        java 9后还增加了一个release,是限定了API的版本，防止在源码中增加了高于生成的字节码版本的API，-->
+<!--        这样在编译阶段就能检查到了-->
+<!--        但是，即使是把源码版本和API版本都限定了，使用高版本的语法仍然存在危险，因为release只限制了官方的API，-->
+<!--        还有三方库的引用以及不同版本的序列化反序列化结果不同等问题还是会存在，所以升级升级仍然具有风险，-->
+<!--        release只是减少一些风险而已。-->
+        <maven.compiler.release>9</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+    <!-- 从这里可以看到，dependencies和build有相同的结构，但是为什么要分开呢？  -->
+    <!--  dependencies是依赖关系，build是构建信息，他们两个在生命周期的位置不同。  -->
+    <!-- 把他们写成相同结构的原因是Maven认为他们都是包，不管是在什么阶段的，这是一种模型统一的设计理念。 -->
+    <dependencies>
+        <dependency>
+<!--            groupId+artifactId+version构成了唯一ID，Maven规定了包一经发布，不允许修改。如要需要更改，
+只有发布新版本，又称为GAV坐标-->
+<!--            组织名称-->
+            <groupId>org.projectlombok</groupId>
+<!--            包名-->
+            <artifactId>lombok</artifactId>
+<!--            版本号-->
+            <version>1.18.24</version>
+<!--            这是依赖关系，依赖关系分为4种-->
+<!--            compile 编译时需要，这是默认项，默认打包-->
+<!--            test 会在test阶段放入classpath中-->
+<!--            runtime 编译时不需要，运行时需要 （比如在项目中没有引用或者声明mysql包中的任意类型，-->
+<!--            所以编译时不会检查，也不会加入classpath。但是实际项目运行中，是需要这个jar包的，所以也是会打包的。）-->
+<!--            provided 编译时需要，运行时不需要 （lombok就是个例子，会在编译过程中通过注解处理器自动生成代码，-->
+<!--            运行时就不需要把它放入jar包了）-->
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
 ```
 
-- 执行 `mvn compile`：  
-    主代码编译 classpath 包含：spring-core（compile）、servlet-api（provided）。MySQL 驱动（runtime）和 JUnit（test）不在其中。  
-    如果主代码中写 `import com.mysql.jdbc.Driver`，编译会失败。
-    
-- 执行 `mvn test`：  
-    测试代码编译 classpath 包含：以上所有依赖。测试代码可以使用 JUnit、MySQL 驱动等。  
-    测试运行时，同样使用这个 classpath。
-    
-- 执行 `mvn package`：  
-    打包最终的 JAR 时，会包含 spring-core（compile）和 MySQL 驱动（runtime），但不会包含 servlet-api（provided）和 JUnit（test）。
-    
-
----
-
-## 七、总结
-
-- Maven 生命周期定义了构建的顺序和阶段。
-    
-- 依赖范围决定了每个阶段使用哪些依赖。
-    
-- 理解生命周期有助于你准确判断一个依赖在何时生效、何时消失，从而正确配置 scope，避免生产环境出现 `ClassNotFoundException` 或包体积臃肿的问题。
-    
